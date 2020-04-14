@@ -4,21 +4,31 @@ module.exports = function (options) {
   const { loginUrl, emailPostfix } = options;
 
   this.bindHook('third_login', (ctx) => {
-    let token = ctx.request.body.token || ctx.request.query.token;
+    let token = ctx.request.body.token || ctx.request.query.ticket;
     return new Promise((resolve, reject) => {
-      request(loginUrl + token, function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-          let result = JSON.parse(body);
-          if (result && result.ret === true) {
-            let ret = {
-              email: result.userId + emailPostfix,
-              username: result.data.userInfo.name
-            };
-            resolve(ret);
-          } else {
-            reject(result);
+      request({
+          uri: loginUrl,
+          method: 'GET',
+          qs: {
+            ticket: token,
+            service: ctx.headers['referer'] + ctx.path.substring(1),
           }
+      }, function (error, response, body) {
+
+        if (!error && response.statusCode == 200) {
+            let name =  (/<cas:user>(.*)<\/cas:user>/mi.exec(response.body) || [])[1]
+            if (!name) {
+                reject(new Error(response.body))
+            }
+
+            let ret = {
+                email: name + emailPostfix,
+                username: name
+            }
+
+            resolve(ret)
         }
+
         reject(error);
       });
     });
